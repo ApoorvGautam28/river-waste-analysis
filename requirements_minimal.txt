@@ -6,4 +6,3 @@ Pillow
 plotly
 seaborn
 matplotlib
-requests

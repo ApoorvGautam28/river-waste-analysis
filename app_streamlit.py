@@ -19,6 +19,9 @@ from datetime import datetime, timedelta
 import sqlite3
 import io
 import os
+import requests
+from urllib.parse import quote
+import re
 
 # Set page configuration
 st.set_page_config(
@@ -89,7 +92,10 @@ def init_database():
                 wwi_score REAL,
                 wqi_score REAL,
                 river_status TEXT,
-                confidence_score REAL
+                confidence_score REAL,
+                country TEXT,
+                region TEXT,
+                full_address TEXT
             )
         ''')
         
@@ -97,6 +103,129 @@ def init_database():
         st.session_state.database_initialized = True
         return conn
     return sqlite3.connect('river_waste_analysis.db', check_same_thread=False)
+
+# Geocoding functions
+def geocode_location(location_name):
+    """Convert location name to coordinates using Nominatim (OpenStreetMap)"""
+    try:
+        # Use Nominatim API (free, no API key required)
+        url = f"https://nominatim.openstreetmap.org/search?format=json&q={quote(location_name)}&limit=1"
+        headers = {'User-Agent': 'RiverWasteAnalysis/1.0'}
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                result = data[0]
+                return {
+                    'latitude': float(result['lat']),
+                    'longitude': float(result['lon']),
+                    'display_name': result.get('display_name', location_name),
+                    'country': result.get('address', {}).get('country', ''),
+                    'region': result.get('address', {}).get('state', result.get('address', {}).get('region', ''))
+                }
+    except Exception as e:
+        st.warning(f"Could not geocode location: {e}")
+    
+    return None
+
+def get_location_suggestions(query):
+    """Get location suggestions for autocomplete"""
+    try:
+        if len(query) < 2:
+            return []
+        
+        url = f"https://nominatim.openstreetmap.org/search?format=json&q={quote(query)}&limit=5"
+        headers = {'User-Agent': 'RiverWasteAnalysis/1.0'}
+        
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return [item.get('display_name', item.get('name', '')) for item in data]
+    except:
+        pass
+    
+    return []
+
+def create_interactive_map(latitude, longitude, location_name, zoom=10):
+    """Create an interactive map showing the location"""
+    fig = go.Figure()
+    
+    # Add the location marker
+    fig.add_trace(go.Scattermapbox(
+        lat=[latitude],
+        lon=[longitude],
+        mode='markers',
+        marker=dict(size=20, color='red', symbol='circle'),
+        text=[location_name],
+        name='Analysis Location',
+        hovertemplate='<b>%{text}</b><br>Lat: %{lat}<br>Lon: %{lon}<extra></extra>'
+    ))
+    
+    # Set up the map layout
+    fig.update_layout(
+        mapbox=dict(
+            style='open-street-map',
+            center=dict(lat=latitude, lon=longitude),
+            zoom=zoom
+        ),
+        showlegend=False,
+        height=400,
+        margin=dict(l=0, r=0, t=0, b=0),
+        title=f"📍 {location_name}"
+    )
+    
+    return fig
+
+def create_multiple_locations_map(locations_df):
+    """Create a map showing multiple analysis locations"""
+    if locations_df.empty:
+        return None
+    
+    fig = go.Figure()
+    
+    # Color coding for pollution levels
+    def get_color_for_status(status):
+        colors = {
+            'Clean': 'green',
+            'Moderately Polluted': 'yellow', 
+            'Polluted': 'orange',
+            'Severely Polluted': 'red'
+        }
+        return colors.get(status, 'blue')
+    
+    # Add markers for each location
+    for _, row in locations_df.iterrows():
+        fig.add_trace(go.Scattermapbox(
+            lat=[row['latitude']],
+            lon=[row['longitude']],
+            mode='markers',
+            marker=dict(
+                size=15,
+                color=get_color_for_status(row['river_status']),
+                symbol='circle'
+            ),
+            text=[f"{row['location']}<br>WWI: {row['wwi_score']}<br>Status: {row['river_status']}"],
+            name=row['location'],
+            hovertemplate='<b>%{text}</b><br>Lat: %{lat}<br>Lon: %{lon}<extra></extra>'
+        ))
+    
+    # Calculate center point
+    center_lat = locations_df['latitude'].mean()
+    center_lon = locations_df['longitude'].mean()
+    
+    fig.update_layout(
+        mapbox=dict(
+            style='open-street-map',
+            center=dict(lat=center_lat, lon=center_lon),
+            zoom=8
+        ),
+        showlegend=True,
+        height=500,
+        title="🗺️ River Pollution Analysis Locations"
+    )
+    
+    return fig
 
 # Waste Detection Class
 class WasteDetectionML:
@@ -260,8 +389,8 @@ def save_analysis(analysis_data):
     cursor.execute('''
         INSERT INTO analyses 
         (image_path, location, latitude, longitude, waste_composition, 
-         wwi_score, wqi_score, river_status, confidence_score)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         wwi_score, wqi_score, river_status, confidence_score, country, region, full_address)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         analysis_data.get('image_path', ''),
         analysis_data.get('location', ''),
@@ -271,7 +400,10 @@ def save_analysis(analysis_data):
         analysis_data['wwi_score'],
         analysis_data['wqi_score'],
         analysis_data['river_status'],
-        analysis_data.get('confidence_score', 0.85)
+        analysis_data.get('confidence_score', 0.85),
+        analysis_data.get('country', ''),
+        analysis_data.get('region', ''),
+        analysis_data.get('full_address', '')
     ))
     
     conn.commit()
@@ -301,7 +433,8 @@ page = st.sidebar.selectbox("Choose a page", [
     "🏠 Dashboard", 
     "📸 Image Analysis", 
     "📊 Analytics", 
-    "📈 Trends"
+    "📈 Trends",
+    "🗺️ Map View"
 ])
 
 # Dashboard Page
@@ -393,14 +526,65 @@ elif page == "📸 Image Analysis":
             # Analysis parameters
             st.subheader("⚙️ Analysis Parameters")
             
+            # Location input with geocoding
             col_a, col_b = st.columns(2)
             with col_a:
-                location = st.text_input("Location Name", "River Thames - London")
+                location_input = st.text_input("📍 Location Name", "River Thames - London", 
+                                              help="Enter a location name and it will be automatically geocoded")
+                
+                # Geocode button
+                col_geo1, col_geo2 = st.columns([2, 1])
+                with col_geo1:
+                    if st.button("🗺️ Get Coordinates", help="Convert location name to coordinates"):
+                        if location_input:
+                            with st.spinner("🔍 Geocoding location..."):
+                                geo_result = geocode_location(location_input)
+                                if geo_result:
+                                    st.session_state.geo_result = geo_result
+                                    st.success(f"✅ Location found: {geo_result['display_name']}")
+                                else:
+                                    st.error("❌ Location not found. Try a more specific location name.")
+                                    st.session_state.geo_result = None
+                        else:
+                            st.warning("⚠️ Please enter a location name first.")
+                
+                with col_geo2:
+                    if st.button("🔄 Clear Location"):
+                        st.session_state.geo_result = None
+                        location_input = ""
+            
+            # Display geocoded results
+            if 'geo_result' in st.session_state and st.session_state.geo_result:
+                geo_data = st.session_state.geo_result
+                st.info(f"📍 **Found Location:** {geo_data['display_name']}")
+                
+                location = geo_data['display_name']
+                latitude = geo_data['latitude']
+                longitude = geo_data['longitude']
+                
+                # Show the location on a small map
+                map_fig = create_interactive_map(latitude, longitude, location, zoom=12)
+                st.plotly_chart(map_fig, use_container_width=True)
+                
+            else:
+                # Manual input fallback
+                st.info("💡 **Tip:** Enter a location name like 'River Thames London' or 'Ganges River Varanasi' and click 'Get Coordinates'")
+                location = location_input
                 latitude = st.number_input("Latitude", value=51.5074, format="%.6f")
+                longitude = st.number_input("Longitude", value=-0.1278, format="%.6f")
             
             with col_b:
-                longitude = st.number_input("Longitude", value=-0.1278, format="%.6f")
                 total_waste = st.number_input("Total Waste (kg)", value=100.0, min_value=0.0)
+                
+                # Additional location info if geocoded
+                if 'geo_result' in st.session_state and st.session_state.geo_result:
+                    geo_data = st.session_state.geo_result
+                    st.markdown("**📍 Location Details:**")
+                    if geo_data.get('country'):
+                        st.write(f"🌍 Country: {geo_data['country']}")
+                    if geo_data.get('region'):
+                        st.write(f"🗺️ Region: {geo_data['region']}")
+                    st.write(f"📐 Coordinates: {geo_data['latitude']:.6f}, {geo_data['longitude']:.6f}")
             
             # Water quality parameters
             st.subheader("💧 Water Quality Parameters")
@@ -440,7 +624,7 @@ elif page == "📸 Image Analysis":
                         max_percentage = max(waste_composition.values())
                         confidence_score = (max_percentage / 100) * 0.8 + 0.2
                         
-                        # Store results
+                        # Store results with geocoded data
                         analysis_data = {
                             'image_path': uploaded_file.name,
                             'location': location,
@@ -452,6 +636,13 @@ elif page == "📸 Image Analysis":
                             'river_status': river_status,
                             'confidence_score': confidence_score
                         }
+                        
+                        # Add geocoded data if available
+                        if 'geo_result' in st.session_state and st.session_state.geo_result:
+                            geo_data = st.session_state.geo_result
+                            analysis_data['country'] = geo_data.get('country', '')
+                            analysis_data['region'] = geo_data.get('region', '')
+                            analysis_data['full_address'] = geo_data.get('display_name', location)
                         
                         st.session_state.current_analysis = analysis_data
                         save_analysis(analysis_data)
@@ -502,6 +693,12 @@ elif page == "📸 Image Analysis":
                 height=400
             )
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Show location map
+            st.subheader("🗺️ Analysis Location")
+            if analysis['latitude'] != 0 and analysis['longitude'] != 0:
+                map_fig = create_interactive_map(analysis['latitude'], analysis['longitude'], analysis['location'], zoom=12)
+                st.plotly_chart(map_fig, use_container_width=True)
             
             # Detailed breakdown
             st.subheader("📋 Detailed Breakdown")
@@ -690,6 +887,115 @@ elif page == "📈 Trends":
             st.warning("No data found for the selected date range.")
     else:
         st.warning("No historical data available for trend analysis")
+
+# Map View Page
+elif page == "🗺️ Map View":
+    st.header("🗺️ Geographic Analysis")
+    
+    # Get location data
+    history_df = get_analysis_history(200)
+    
+    if not history_df.empty:
+        # Filter data with valid coordinates
+        valid_locations = history_df[
+            (history_df['latitude'] != 0) & 
+            (history_df['longitude'] != 0)
+        ]
+        
+        if not valid_locations.empty:
+            # Create interactive map
+            st.subheader("📍 Pollution Hotspot Map")
+            
+            map_fig = create_multiple_locations_map(valid_locations)
+            if map_fig:
+                st.plotly_chart(map_fig, use_container_width=True)
+            
+            # Location statistics
+            st.subheader("📊 Location Statistics")
+            
+            location_summary = valid_locations.groupby('location').agg({
+                'wwi_score': ['mean', 'count'],
+                'wqi_score': 'mean',
+                'latitude': 'first',
+                'longitude': 'first',
+                'river_status': lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else x.iloc[0]
+            }).round(2)
+            
+            location_summary.columns = ['Avg WWI', 'Analysis Count', 'Avg WQI', 'Latitude', 'Longitude', 'Common Status']
+            location_summary = location_summary.sort_values('Avg WWI', ascending=False)
+            
+            st.dataframe(location_summary, use_container_width=True)
+            
+            # Export location data
+            if st.button("📥 Export Location Data"):
+                csv_data = location_summary.to_csv(index=False)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv_data,
+                    file_name=f"location_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+            
+            # Regional analysis
+            if 'country' in valid_locations.columns:
+                st.subheader("🌍 Regional Analysis")
+                
+                country_stats = valid_locations.groupby('country').agg({
+                    'wwi_score': 'mean',
+                    'wqi_score': 'mean',
+                    'id': 'count'
+                }).round(2)
+                country_stats.columns = ['Avg WWI', 'Avg WQI', 'Analysis Count']
+                country_stats = country_stats.sort_values('Avg WWI', ascending=False)
+                
+                st.dataframe(country_stats, use_container_width=True)
+                
+                # Regional map
+                if len(country_stats) > 1:
+                    st.subheader("🗺️ Regional Pollution Map")
+                    
+                    # Create summary map by country
+                    fig = go.Figure()
+                    
+                    for country, stats in country_stats.iterrows():
+                        country_data = valid_locations[valid_locations['country'] == country]
+                        if not country_data.empty:
+                            center_lat = country_data['latitude'].mean()
+                            center_lon = country_data['longitude'].mean()
+                            
+                            fig.add_trace(go.Scattermapbox(
+                                lat=[center_lat],
+                                lon=[center_lon],
+                                mode='markers',
+                                marker=dict(
+                                    size=stats['Analysis Count'] * 5,
+                                    color=stats['Avg WWI'],
+                                    colorscale='Reds',
+                                    showscale=True,
+                                    colorbar=dict(title="Avg WWI")
+                                ),
+                                text=[f"{country}<br>Analyses: {stats['Analysis Count']}<br>Avg WWI: {stats['Avg WWI']}"],
+                                name=country,
+                                hovertemplate='<b>%{text}</b><extra></extra>'
+                            ))
+                    
+                    fig.update_layout(
+                        mapbox=dict(
+                            style='open-street-map',
+                            center=dict(lat=valid_locations['latitude'].mean(), 
+                                       lon=valid_locations['longitude'].mean()),
+                            zoom=5
+                        ),
+                        showlegend=True,
+                        height=500,
+                        title="🌍 Regional Pollution Overview"
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No location data available. Make sure to include coordinates in your analyses.")
+    else:
+        st.warning("No analysis data available. Perform some analyses with location data first.")
 
 # Footer
 st.markdown("---")

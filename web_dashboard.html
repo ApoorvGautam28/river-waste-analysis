@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>River Waste Analysis Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .status-clean { background-color: #10b981; }
+        .status-moderate { background-color: #f59e0b; }
+        .status-polluted { background-color: #ef4444; }
+        .status-severe { background-color: #7c2d12; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation Header -->
+    <nav class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-water text-3xl"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold">River Waste Analysis</h1>
+                        <p class="text-sm opacity-90">Enterprise Pollution Monitoring System</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <button onclick="refreshData()" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                    <div class="relative">
+                        <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" id="alertCount">0</span>
+                        <button onclick="showAlerts()" class="relative bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition">
+                            <i class="fas fa-bell"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <img src="https://picsum.photos/seed/user123/40/40.jpg" alt="User" class="rounded-full">
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Dashboard Content -->
+    <div class="container mx-auto px-6 py-8">
+        <!-- Statistics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Analyses</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalAnalyses">0</p>
+                        <p class="text-sm text-green-600 mt-2">
+                            <i class="fas fa-arrow-up"></i> <span id="analysesTrend">+0%</span> this week
+                        </p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i class="fas fa-chart-line text-blue-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Average WWI</p>
+                        <p class="text-3xl font-bold text-gray-800" id="avgWWI">0.0</p>
+                        <p class="text-sm text-orange-600 mt-2">
+                            <i class="fas fa-exclamation-triangle"></i> <span id="wwiStatus">Moderate</span>
+                        </p>
+                    </div>
+                    <div class="bg-orange-100 p-3 rounded-full">
+                        <i class="fas fa-skull-crossbones text-orange-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Average WQI</p>
+                        <p class="text-3xl font-bold text-gray-800" id="avgWQI">0.0</p>
+                        <p class="text-sm text-blue-600 mt-2">
+                            <i class="fas fa-tint"></i> <span id="wqiStatus">Good</span>
+                        </p>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i class="fas fa-water text-green-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Active Alerts</p>
+                        <p class="text-3xl font-bold text-red-600" id="activeAlerts">0</p>
+                        <p class="text-sm text-red-600 mt-2 pulse-animation">
+                            <i class="fas fa-bell"></i> Requires attention
+                        </p>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full">
+                        <i class="fas fa-exclamation-circle text-red-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Pollution Trends Chart -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Pollution Trends (30 Days)</h3>
+                    <select onchange="updateTrendsChart(this.value)" class="border rounded px-3 py-1 text-sm">
+                        <option value="30">Last 30 Days</option>
+                        <option value="7">Last 7 Days</option>
+                        <option value="90">Last 90 Days</option>
+                    </select>
+                </div>
+                <canvas id="trendsChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Waste Composition Chart -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Waste Composition</h3>
+                    <button onclick="updateCompositionChart()" class="text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <canvas id="compositionChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Analyses Table -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-800">Recent Analyses</h3>
+                <div class="flex space-x-2">
+                    <input type="text" placeholder="Search location..." id="locationSearch" 
+                           class="border rounded px-3 py-1 text-sm">
+                    <button onclick="searchAnalyses()" class="bg-blue-600 text-white px-4 py-1 rounded text-sm hover:bg-blue-700">
+                        Search
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WWI</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WQI</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analysesTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Table rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                <h3 class="text-lg font-semibold mb-4">Quick Analysis</h3>
+                <p class="text-sm mb-4 opacity-90">Upload and analyze river images instantly</p>
+                <button onclick="showUploadModal()" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
+                    <i class="fas fa-upload mr-2"></i>Upload Image
+                </button>
+            </div>
+
+            <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+                <h3 class="text-lg font-semibold mb-4">Export Data</h3>
+                <p class="text-sm mb-4 opacity-90">Download analysis data in CSV format</p>
+                <button onclick="exportData()" class="bg-white text-green-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
+                    <i class="fas fa-download mr-2"></i>Export CSV
+                </button>
+            </div>
+
+            <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+                <h3 class="text-lg font-semibold mb-4">Add Location</h3>
+                <p class="text-sm mb-4 opacity-90">Register new monitoring locations</p>
+                <button onclick="showLocationModal()" class="bg-white text-purple-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-100 transition">
+                    <i class="fas fa-map-marker-alt mr-2"></i>Add Location
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+            <h3 class="text-xl font-semibold mb-4">Upload River Image</h3>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                <p class="text-gray-600 mb-4">Drag and drop image here or click to browse</p>
+                <input type="file" id="fileInput" accept="image/*" class="hidden" onchange="handleFileSelect(event)">
+                <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Select Image
+                </button>
+            </div>
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                <input type="text" id="uploadLocation" placeholder="Enter location name" 
+                       class="w-full border rounded px-3 py-2">
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button onclick="closeUploadModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+                <button onclick="uploadAndAnalyze()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    Analyze
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Location Modal -->
+    <div id="locationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+            <h3 class="text-xl font-semibold mb-4">Add Monitoring Location</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Location Name</label>
+                    <input type="text" id="locationName" placeholder="e.g., River Thames - London Bridge" 
+                           class="w-full border rounded px-3 py-2">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Latitude</label>
+                        <input type="number" id="locationLat" step="0.000001" placeholder="51.5074" 
+                               class="w-full border rounded px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Longitude</label>
+                        <input type="number" id="locationLng" step="0.000001" placeholder="-0.1278" 
+                               class="w-full border rounded px-3 py-2">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea id="locationDesc" placeholder="Optional description..." 
+                              class="w-full border rounded px-3 py-2 h-20"></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button onclick="closeLocationModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+                <button onclick="addLocation()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                    Add Location
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts Modal -->
+    <div id="alertsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+            <h3 class="text-xl font-semibold mb-4">Active Pollution Alerts</h3>
+            <div id="alertsList" class="space-y-3">
+                <!-- Alerts will be populated here -->
+            </div>
+            <div class="flex justify-end mt-6">
+                <button onclick="closeAlertsModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let authToken = localStorage.getItem('authToken') || 'demo-token';
+        let trendsChart, compositionChart;
+        let selectedFile = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadDashboardData();
+            setInterval(refreshData, 30000); // Auto-refresh every 30 seconds
+        });
+
+        // Initialize charts
+        function initializeCharts() {
+            // Trends Chart
+            const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+            trendsChart = new Chart(trendsCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'WWI Score',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1
+                    }, {
+                        label: 'WQI Score',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Composition Chart
+            const compositionCtx = document.getElementById('compositionChart').getContext('2d');
+            compositionChart = new Chart(compositionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Plastic', 'Metal', 'Glass', 'Paper/Cardboard', 'Organic Waste', 'Cloth', 'E-Waste', 'Other'],
+                    datasets: [{
+                        data: [25, 15, 10, 20, 15, 5, 5, 5],
+                        backgroundColor: [
+                            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+                            '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                // Load statistics
+                const statsResponse = await axios.get('/api/dashboard/stats', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                updateStatistics(statsResponse.data);
+
+                // Load trends
+                const trendsResponse = await axios.get('/api/trends?days=30', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                updateTrendsChart(trendsResponse.data.trends);
+
+                // Load recent analyses
+                const historyResponse = await axios.get('/api/history?limit=10', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                updateAnalysesTable(historyResponse.data.analyses);
+
+                // Load alerts
+                const alertsResponse = await axios.get('/api/alerts', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                updateAlerts(alertsResponse.data);
+
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+                // Load demo data for development
+                loadDemoData();
+            }
+        }
+
+        // Update statistics cards
+        function updateStatistics(stats) {
+            document.getElementById('totalAnalyses').textContent = stats.total_analyses || 0;
+            document.getElementById('avgWWI').textContent = (stats.avg_wwi || 0).toFixed(1);
+            document.getElementById('avgWQI').textContent = (stats.avg_wqi || 0).toFixed(1);
+            document.getElementById('activeAlerts').textContent = stats.active_alerts || 0;
+            document.getElementById('alertCount').textContent = stats.active_alerts || 0;
+
+            // Update status indicators
+            const wwi = stats.avg_wwi || 0;
+            const wqi = stats.avg_wqi || 0;
+            
+            document.getElementById('wwiStatus').textContent = wwi > 70 ? 'High' : wwi > 40 ? 'Moderate' : 'Low';
+            document.getElementById('wqiStatus').textContent = wqi > 70 ? 'Poor' : wqi > 40 ? 'Fair' : 'Good';
+        }
+
+        // Update trends chart
+        function updateTrendsChart(trendsData) {
+            if (!trendsData || !trendsData.dates) return;
+
+            trendsChart.data.labels = trendsData.dates.map(date => {
+                const d = new Date(date);
+                return d.toLocaleDateString();
+            });
+            trendsChart.data.datasets[0].data = trendsData.avg_wwi;
+            trendsChart.data.datasets[1].data = trendsData.avg_wqi;
+            trendsChart.update();
+        }
+
+        // Update analyses table
+        function updateAnalysesTable(analyses) {
+            const tbody = document.getElementById('analysesTableBody');
+            tbody.innerHTML = '';
+
+            analyses.forEach(analysis => {
+                const row = document.createElement('tr');
+                const date = new Date(analysis.timestamp);
+                const statusClass = getStatusClass(analysis.river_status);
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${date.toLocaleDateString()} ${date.toLocaleTimeString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${analysis.location || 'Unknown'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${analysis.wwi_score?.toFixed(2) || '0.00'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${analysis.wqi_score?.toFixed(2) || '0.00'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${analysis.river_status || 'Unknown'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="viewAnalysis(${analysis.id})" class="text-blue-600 hover:text-blue-900 mr-3">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button onclick="downloadReport(${analysis.id})" class="text-green-600 hover:text-green-900">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Update alerts
+        function updateAlerts(alerts) {
+            document.getElementById('activeAlerts').textContent = alerts.length;
+            document.getElementById('alertCount').textContent = alerts.length;
+
+            const alertsList = document.getElementById('alertsList');
+            alertsList.innerHTML = '';
+
+            alerts.forEach(alert => {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `border-l-4 ${getSeverityColor(alert.severity)} bg-white p-4 rounded`;
+                alertDiv.innerHTML = `
+                    <div class="flex items-start">
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-900">${alert.alert_type}</p>
+                            <p class="text-sm text-gray-600 mt-1">${alert.message}</p>
+                            <p class="text-xs text-gray-500 mt-2">
+                                ${alert.location} - ${new Date(alert.created_at).toLocaleString()}
+                            </p>
+                        </div>
+                        <span class="ml-3 px-2 py-1 text-xs font-semibold rounded ${getSeverityBadgeClass(alert.severity)}">
+                            ${alert.severity}
+                        </span>
+                    </div>
+                `;
+                alertsList.appendChild(alertDiv);
+            });
+        }
+
+        // Utility functions
+        function getStatusClass(status) {
+            switch(status) {
+                case 'Clean': return 'bg-green-100 text-green-800';
+                case 'Moderately Polluted': return 'bg-yellow-100 text-yellow-800';
+                case 'Polluted': return 'bg-orange-100 text-orange-800';
+                case 'Severely Polluted': return 'bg-red-100 text-red-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function getSeverityColor(severity) {
+            switch(severity) {
+                case 'critical': return 'border-red-500';
+                case 'high': return 'border-orange-500';
+                case 'medium': return 'border-yellow-500';
+                default: return 'border-gray-500';
+            }
+        }
+
+        function getSeverityBadgeClass(severity) {
+            switch(severity) {
+                case 'critical': return 'bg-red-100 text-red-800';
+                case 'high': return 'bg-orange-100 text-orange-800';
+                case 'medium': return 'bg-yellow-100 text-yellow-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        // Modal functions
+        function showUploadModal() {
+            document.getElementById('uploadModal').classList.remove('hidden');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.add('hidden');
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('uploadLocation').value = '';
+        }
+
+        function showLocationModal() {
+            document.getElementById('locationModal').classList.remove('hidden');
+        }
+
+        function closeLocationModal() {
+            document.getElementById('locationModal').classList.add('hidden');
+            document.getElementById('locationName').value = '';
+            document.getElementById('locationLat').value = '';
+            document.getElementById('locationLng').value = '';
+            document.getElementById('locationDesc').value = '';
+        }
+
+        function showAlerts() {
+            document.getElementById('alertsModal').classList.remove('hidden');
+        }
+
+        function closeAlertsModal() {
+            document.getElementById('alertsModal').classList.add('hidden');
+        }
+
+        // File handling
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                // Show file preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Could show preview here
+                };
+                reader.readAsDataURL(selectedFile);
+            }
+        }
+
+        // Upload and analyze
+        async function uploadAndAnalyze() {
+            if (!selectedFile) {
+                alert('Please select an image file');
+                return;
+            }
+
+            const location = document.getElementById('uploadLocation').value;
+            if (!location) {
+                alert('Please enter a location');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('location', location);
+
+            try {
+                // Show loading state
+                const analyzeBtn = event.target;
+                analyzeBtn.disabled = true;
+                analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyzing...';
+
+                const response = await axios.post('/api/analyze/upload', formData, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                // Success
+                alert('Analysis completed successfully!');
+                closeUploadModal();
+                refreshData();
+
+            } catch (error) {
+                console.error('Upload failed:', error);
+                alert('Upload failed. Please try again.');
+            } finally {
+                // Reset button
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = 'Analyze';
+            }
+        }
+
+        // Add location
+        async function addLocation() {
+            const name = document.getElementById('locationName').value;
+            const lat = parseFloat(document.getElementById('locationLat').value);
+            const lng = parseFloat(document.getElementById('locationLng').value);
+            const desc = document.getElementById('locationDesc').value;
+
+            if (!name || isNaN(lat) || isNaN(lng)) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                await axios.post('/api/locations', {
+                    name: name,
+                    latitude: lat,
+                    longitude: lng,
+                    description: desc
+                }, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                alert('Location added successfully!');
+                closeLocationModal();
+
+            } catch (error) {
+                console.error('Failed to add location:', error);
+                alert('Failed to add location. Please try again.');
+            }
+        }
+
+        // Export data
+        async function exportData() {
+            const startDate = prompt('Enter start date (YYYY-MM-DD):', new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0]);
+            const endDate = prompt('Enter end date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+
+            if (!startDate || !endDate) return;
+
+            try {
+                const response = await axios.get(`/api/export/csv?start_date=${startDate}&end_date=${endDate}`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` },
+                    responseType: 'blob'
+                });
+
+                // Create download link
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `river_waste_data_${startDate}_${endDate}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+            } catch (error) {
+                console.error('Export failed:', error);
+                alert('Export failed. Please try again.');
+            }
+        }
+
+        // Search analyses
+        async function searchAnalyses() {
+            const location = document.getElementById('locationSearch').value;
+            
+            try {
+                const response = await axios.get(`/api/history?location=${encodeURIComponent(location)}&limit=50`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                updateAnalysesTable(response.data.analyses);
+
+            } catch (error) {
+                console.error('Search failed:', error);
+            }
+        }
+
+        // Refresh data
+        function refreshData() {
+            loadDashboardData();
+        }
+
+        // Demo data for development
+        function loadDemoData() {
+            const demoStats = {
+                total_analyses: 156,
+                avg_wwi: 42.3,
+                avg_wqi: 58.7,
+                active_alerts: 3
+            };
+            updateStatistics(demoStats);
+
+            const demoAnalyses = [
+                {
+                    id: 1,
+                    timestamp: new Date().toISOString(),
+                    location: 'River Thames - London Bridge',
+                    wwi_score: 45.2,
+                    wqi_score: 62.1,
+                    river_status: 'Moderately Polluted'
+                },
+                {
+                    id: 2,
+                    timestamp: new Date(Date.now() - 2*60*60*1000).toISOString(),
+                    location: 'Hudson River - NYC',
+                    wwi_score: 38.7,
+                    wqi_score: 71.3,
+                    river_status: 'Moderately Polluted'
+                }
+            ];
+            updateAnalysesTable(demoAnalyses);
+
+            const demoAlerts = [
+                {
+                    id: 1,
+                    alert_type: 'high_pollution',
+                    severity: 'high',
+                    message: 'High pollution levels detected at River Thames',
+                    location: 'River Thames - London Bridge',
+                    created_at: new Date().toISOString()
+                }
+            ];
+            updateAlerts(demoAlerts);
+        }
+
+        // View analysis details
+        function viewAnalysis(analysisId) {
+            // Would open detailed view modal
+            alert(`Viewing analysis ${analysisId} - Feature coming soon!`);
+        }
+
+        // Download report
+        function downloadReport(analysisId) {
+            // Would generate and download PDF report
+            alert(`Downloading report for analysis ${analysisId} - Feature coming soon!`);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+{
+  "waste_risk_weights": {
+    "Plastic": 0.9,
+    "Metal": 0.6,
+    "Glass": 0.5,
+    "Paper/Cardboard": 0.2,
+    "Organic Waste": 0.3,
+    "Cloth": 0.4,
+    "E-Waste": 1.0,
+    "Other": 0.5
+  },
+  "analysis_history": [
+    {
+      "timestamp": "2026-04-23T19:27:43.405815",
+      "image_path": "C:/Users/apoor/OneDrive/Desktop/Screenshot 2026-04-23 192714.png",
+      "results": {
+        "Plastic": 17.03,
+        "Metal": 19.580000000000002,
+        "Glass": 11.66,
+        "Paper/Cardboard": 12.88,
+        "Organic Waste": 9.37,
+        "Cloth": 9.86,
+        "E-Waste": 13.02,
+        "Other": 6.6
+      }
+    },
+    {
+      "timestamp": "2026-04-23T19:28:11.751274",
+      "image_path": "C:/Users/apoor/OneDrive/Desktop/Screenshot 2026-04-23 192714.png",
+      "results": {
+        "Plastic": 17.03,
+        "Metal": 19.580000000000002,
+        "Glass": 11.66,
+        "Paper/Cardboard": 12.88,
+        "Organic Waste": 9.37,
+        "Cloth": 9.86,
+        "E-Waste": 13.02,
+        "Other": 6.6
+      }
+    },
+    {
+      "timestamp": "2026-04-23T21:58:37.307510",
+      "image_path": "C:/Users/apoor/OneDrive/Desktop/Screenshot 2026-04-23 192714.png",
+      "results": {
+        "Plastic": 17.03,
+        "Metal": 19.580000000000002,
+        "Glass": 11.66,
+        "Paper/Cardboard": 12.88,
+        "Organic Waste": 9.37,
+        "Cloth": 9.86,
+        "E-Waste": 13.02,
+        "Other": 6.6
+      }
+    },
+    {
+      "timestamp": "2026-04-23T22:11:55.122847",
+      "image_path": "C:/Users/apoor/OneDrive/Desktop/india-uttar-pradesh-varanasi-assi-ghat-brightly-dressed-pilgrims-by-CEFNHP.jpg.jpeg",
+      "results": {
+        "Plastic": 15.42,
+        "Metal": 18.44,
+        "Glass": 9.76,
+        "Paper/Cardboard": 14.21,
+        "Organic Waste": 10.88,
+        "Cloth": 10.98,
+        "E-Waste": 13.11,
+        "Other": 7.2
+      }
+    },
+    {
+      "timestamp": "2026-04-24T11:14:26.614152",
+      "image_path": "C:/Users/apoor/OneDrive/Desktop/india-uttar-pradesh-varanasi-assi-ghat-brightly-dressed-pilgrims-by-CEFNHP.jpg.jpeg",
+      "results": {
+        "Plastic": 15.42,
+        "Metal": 18.44,
+        "Glass": 9.76,
+        "Paper/Cardboard": 14.21,
+        "Organic Waste": 10.88,
+        "Cloth": 10.98,
+        "E-Waste": 13.11,
+        "Other": 7.2
+      }
+    },
+    {
+      "timestamp": "2026-05-06T12:48:47.608377",
+      "image_path": "C:/Users/apoor/OneDrive/Desktop/india-uttar-pradesh-varanasi-assi-ghat-brightly-dressed-pilgrims-by-CEFNHP.jpg.jpeg",
+      "results": {
+        "Plastic": 15.42,
+        "Metal": 18.44,
+        "Glass": 9.76,
+        "Paper/Cardboard": 14.21,
+        "Organic Waste": 10.88,
+        "Cloth": 10.98,
+        "E-Waste": 13.11,
+        "Other": 7.2
+      }
+    }
+  ]
+}
